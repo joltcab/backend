@@ -4,10 +4,25 @@ import { neon } from '@neondatabase/serverless';
 let sql = null;
 let db = null;
 
-// Inicializar solo si hay DATABASE_URL
-if (process.env.DATABASE_URL) {
-  sql = neon(process.env.DATABASE_URL);
-  db = drizzle(sql);
+// Obtener URL de PostgreSQL de cualquier variable disponible
+const POSTGRES_URL = process.env.POSTGRES_URL || 
+                     process.env.DATABASE_URL_POSTGRES || 
+                     process.env.NEON_DATABASE_URL || 
+                     process.env.PG_CONNECTION_STRING ||
+                     process.env.DATABASE_URL;
+
+// Inicializar solo si hay URL de PostgreSQL y está habilitado
+if (POSTGRES_URL && process.env.USE_POSTGRES !== 'false') {
+  try {
+    sql = neon(POSTGRES_URL);
+    db = drizzle(sql);
+    console.log('✅ PostgreSQL initialized');
+  } catch (error) {
+    console.error('❌ PostgreSQL initialization error:', error.message);
+    console.log('⚠️  Continuing without PostgreSQL...');
+  }
+} else {
+  console.log('⚠️  PostgreSQL disabled - using MongoDB only');
 }
 
 // Helper para verificar conexión
