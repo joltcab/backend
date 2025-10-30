@@ -1,0 +1,296 @@
+Perfecto! Ahora te voy a dar el parche completo para que lo apliques:
+Action: cat /tmp/google-oauth.patch
+Observation: From 28facb84fcd585b3959012938e51d37365013780 Mon Sep 17 00:00:00 2001
+From: JoltCab <joltcab@gmail.com>
+Date: Thu, 30 Oct 2025 16:25:35 +0000
+Subject: [PATCH] Add Google OAuth authentication support
+
+- Created oauth.controller.js with Google Sign In flow
+- Updated User model to make password and phone optional for OAuth users
+- Added Google OAuth routes to auth.routes
+- Enhanced getMe endpoint to return status field
+- Set login_by field for manual registrations
+- All changes tested and ready for deployment
+---
+ src/controllers/auth.controller.js  |   2 +
+ src/controllers/oauth.controller.js | 173 ++++++++++++++++++++++++++++
+ src/models/User.js                  |  19 ++-
+ src/routes/auth.routes.js           |   5 +
+ 4 files changed, 195 insertions(+), 4 deletions(-)
+ create mode 100644 src/controllers/oauth.controller.js
+
+diff --git a/src/controllers/auth.controller.js b/src/controllers/auth.controller.js
+index 0c8c1f5..6ec8901 100644
+--- a/src/controllers/auth.controller.js
++++ b/src/controllers/auth.controller.js
+@@ -45,6 +45,7 @@ export const register = async (req, res, next) => {
+       country_phone_code: country_phone_code || '+1',
+       referral_code,
+       user_type: 7, // Usuario normal
++      login_by: 'manual',
+       is_approved: true,
+     });
+ 
+@@ -200,6 +201,7 @@ export const getMe = async (req, res, next) => {
+           wallet: user.wallet,
+           user_type: user.user_type,
+           role: role,
++          status: 'active', // Always return active status
+         },
+       },
+     });
+diff --git a/src/controllers/oauth.controller.js b/src/controllers/oauth.controller.js
+new file mode 100644
+index 0000000..0b223ec
+--- /dev/null
++++ b/src/controllers/oauth.controller.js
+@@ -0,0 +1,173 @@
++import jwt from 'jsonwebtoken';
++import User from '../models/User.js';
++
++/**
++ * Google OAuth Controller
++ * Handles Google Sign-In authentication for admin panel
++ */
++
++// Initiate Google OAuth flow
++export const googleAuth = async (req, res) => {
++  try {
++    const { role, callback } = req.query;
++    
++    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
++    const BACKEND_URL = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
++    const GOOGLE_REDIRECT_URI = `${BACKEND_URL}/api/v1/auth/google/callback`;
++    
++    console.log('🔍 Environment check:', {
++      hasClientId: !!GOOGLE_CLIENT_ID,
++      hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
++      backendUrl: BACKEND_URL,
++      redirectUri: GOOGLE_REDIRECT_URI
++    });
++    
++    if (!GOOGLE_CLIENT_ID) {
++      return res.status(500).json({
++        success: false,
++        error: 'Google OAuth is not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET'
++      });
++    }
++
++    // Build Google OAuth URL
++    const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
++    googleAuthUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
++    googleAuthUrl.searchParams.append('redirect_uri', GOOGLE_REDIRECT_URI);
++    googleAuthUrl.searchParams.append('response_type', 'code');
++    googleAuthUrl.searchParams.append('scope', 'openid email profile');
++    googleAuthUrl.searchParams.append('access_type', 'offline');
++    googleAuthUrl.searchParams.append('prompt', 'consent');
++    
++    // Store role and callback in state parameter for verification
++    const state = Buffer.from(JSON.stringify({ role, callback })).toString('base64');
++    googleAuthUrl.searchParams.append('state', state);
++
++    console.log('🔐 Initiating Google OAuth flow...');
++    res.redirect(googleAuthUrl.toString());
++    
++  } catch (error) {
++    console.error('❌ Google Auth initiation error:', error);
++    res.status(500).json({
++      success: false,
++      error: 'Failed to initiate Google authentication'
++    });
++  }
++};
++
++// Handle Google OAuth callback
++export const googleCallback = async (req, res) => {
++  try {
++    const { code, state, error } = req.query;
++    
++    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.joltcab.com';
++
++    if (error) {
++      console.error('❌ Google OAuth error:', error);
++      return res.redirect(`${FRONTEND_URL}/Admin?error=${encodeURIComponent(error)}`);
++    }
++
++    if (!code || !state) {
++      return res.redirect(`${FRONTEND_URL}/Admin?error=missing_code`);
++    }
++
++    // Decode state to get role and callback
++    const { role, callback } = JSON.parse(Buffer.from(state, 'base64').toString());
++
++    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
++    const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
++    const BACKEND_URL = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
++    const GOOGLE_REDIRECT_URI = `${BACKEND_URL}/api/v1/auth/google/callback`;
++
++    // Exchange code for tokens
++    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
++      method: 'POST',
++      headers: {
++        'Content-Type': 'application/x-www-form-urlencoded',
++      },
++      body: new URLSearchParams({
++        code,
++        client_id: GOOGLE_CLIENT_ID,
++        client_secret: GOOGLE_CLIENT_SECRET,
++        redirect_uri: GOOGLE_REDIRECT_URI,
++        grant_type: 'authorization_code',
++      }),
++    });
++
++    const tokens = await tokenResponse.json();
++
++    if (!tokens.access_token) {
++      console.error('❌ Google token exchange failed:', tokens);
++      const errorMessage = tokens.error || 'Failed to get access token';
++      return res.redirect(`${FRONTEND_URL}/Admin?error=token_exchange_failed&details=${encodeURIComponent(errorMessage)}`);
++    }
++
++    // Get user info from Google
++    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
++      headers: {
++        Authorization: `Bearer ${tokens.access_token}`,
++      },
++    });
++
++    const googleUser = await userInfoResponse.json();
++    console.log('👤 Google user:', googleUser.email);
++
++    // Find or create user
++    let user = await User.findOne({ email: googleUser.email });
++
++    if (!user) {
++      // Create new user - password and phone are optional for OAuth users
++      user = await User.create({
++        email: googleUser.email,
++        first_name: googleUser.given_name || googleUser.name?.split(' ')[0] || 'User',
++        last_name: googleUser.family_name || googleUser.name?.split(' ').slice(1).join(' ') || 'OAuth',
++        user_type: role === 'admin' ? 1 : 7, // 1 = admin, 7 = regular user
++        login_by: 'google',
++        picture: googleUser.picture || '',
++        is_approved: true,
++        // NOTE: password and phone are NOT provided for OAuth users
++        // The User model has been updated to make these optional when login_by is google
++      });
++      
++      console.log('✅ Created new user from Google OAuth:', user.email);
++    } else {
++      // Update existing user with Google info
++      user.login_by = 'google';
++      user.picture = googleUser.picture || user.picture;
++      await user.save();
++      
++      console.log('✅ Updated existing user from Google OAuth:', user.email);
++    }
++
++    // Verify role if admin is required
++    if (role === 'admin' && user.user_type !== 1) {
++      console.log('⚠️  Access denied: User is not an admin');
++      return res.redirect(`${FRONTEND_URL}/Admin?error=not_admin`);
++    }
++
++    // Generate JWT token
++    const token = jwt.sign(
++      { 
++        id: user._id,
++        email: user.email,
++      },
++      process.env.JWT_SECRET,
++      { expiresIn: '7d' }
++    );
++
++    console.log('✅ Google OAuth successful for:', user.email);
++
++    // Redirect to callback URL with token
++    const redirectUrl = new URL(callback || '/GoogleCallback', FRONTEND_URL);
++    redirectUrl.searchParams.append('token', token);
++    
++    res.redirect(redirectUrl.toString());
++
++  } catch (error) {
++    console.error('❌ Google OAuth callback error:', error);
++    console.error('Error stack:', error.stack);
++    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.joltcab.com';
++    res.redirect(`${FRONTEND_URL}/Admin?error=auth_failed&message=${encodeURIComponent(error.message)}`);
++  }
++};
++
++export default { googleAuth, googleCallback };
+diff --git a/src/models/User.js b/src/models/User.js
+index 7a5cf76..f52834f 100644
+--- a/src/models/User.js
++++ b/src/models/User.js
+@@ -38,12 +38,19 @@ const userSchema = new mongoose.Schema({
+   },
+   phone: {
+     type: String,
+-    required: [true, 'Phone number is required'],
++    required: function() {
++      // Phone is optional for OAuth users (login_by: 'google', 'facebook', 'apple')
++      return this.login_by === 'manual' || !this.login_by;
++    },
+     unique: true,
++    sparse: true, // Allows multiple null values
+   },
+   password: {
+     type: String,
+-    required: [true, 'Password is required'],
++    required: function() {
++      // Password is optional for OAuth users
++      return this.login_by === 'manual' || !this.login_by;
++    },
+     minlength: [6, 'Password must be at least 6 characters'],
+     select: false, // No incluir password en queries por defecto
+   },
+@@ -221,9 +228,10 @@ userSchema.index({ country: 1, is_approved: 1 });
+ userSchema.index({ referral_code: 1 });
+ userSchema.index({ social_unique_id: 1 });
+ 
+-// Encriptar password antes de guardar
++// Encriptar password antes de guardar (solo si existe)
+ userSchema.pre('save', async function(next) {
+-  if (!this.isModified('password')) {
++  // Skip password hashing if no password field (OAuth users)
++  if (!this.password || !this.isModified('password')) {
+     return next();
+   }
+   
+@@ -234,6 +242,9 @@ userSchema.pre('save', async function(next) {
+ 
+ // Método para comparar passwords
+ userSchema.methods.comparePassword = async function(candidatePassword) {
++  if (!this.password) {
++    return false; // OAuth users don't have password
++  }
+   return await bcrypt.compare(candidatePassword, this.password);
+ };
+ 
+diff --git a/src/routes/auth.routes.js b/src/routes/auth.routes.js
+index ed2efa8..c8aac48 100644
+--- a/src/routes/auth.routes.js
++++ b/src/routes/auth.routes.js
+@@ -8,6 +8,7 @@ import {
+   forgotPassword,
+   resetPassword,
+ } from '../controllers/auth.controller.js';
++import { googleAuth, googleCallback } from '../controllers/oauth.controller.js';
+ import { protect } from '../middleware/auth.js';
+ import { authLimiter } from '../middleware/rateLimit.js';
+ 
+@@ -19,6 +20,10 @@ router.post('/login', authLimiter, login);
+ router.post('/forgot-password', authLimiter, forgotPassword);
+ router.post('/reset-password', authLimiter, resetPassword);
+ 
++// Google OAuth routes
++router.get('/google', googleAuth);
++router.get('/google/callback', googleCallback);
++
+ // Rutas protegidas
+ router.post('/logout', protect, logout);
+ router.get('/me', protect, getMe);
+-- 
+2.39.5
+
+
