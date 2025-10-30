@@ -5,8 +5,8 @@ export const googleAuth = async (req, res) => {
   try {
     const { role, callback } = req.query;
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-    const BACKEND_URL = process.env.BACKEND_URL || \`\${req.protocol}://\${req.get('host')}\`;
-    const GOOGLE_REDIRECT_URI = \`\${BACKEND_URL}/api/v1/auth/google/callback\`;
+    const BACKEND_URL = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const GOOGLE_REDIRECT_URI = `${BACKEND_URL}/api/v1/auth/google/callback`;
     
     if (!GOOGLE_CLIENT_ID) {
       return res.status(500).json({ success: false, error: 'Google OAuth not configured' });
@@ -35,31 +35,34 @@ export const googleCallback = async (req, res) => {
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.joltcab.com';
 
     if (error || !code || !state) {
-      return res.redirect(\`\${FRONTEND_URL}/Admin?error=\${error || 'missing_code'}\`);
+      return res.redirect(`${FRONTEND_URL}/Admin?error=${error || 'missing_code'}`);
     }
 
     const { role, callback } = JSON.parse(Buffer.from(state, 'base64').toString());
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-    const BACKEND_URL = process.env.BACKEND_URL || \`\${req.protocol}://\${req.get('host')}\`;
-    const GOOGLE_REDIRECT_URI = \`\${BACKEND_URL}/api/v1/auth/google/callback\`;
+    const BACKEND_URL = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const GOOGLE_REDIRECT_URI = `${BACKEND_URL}/api/v1/auth/google/callback`;
 
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET,
-        redirect_uri: GOOGLE_REDIRECT_URI, grant_type: 'authorization_code',
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code',
       }),
     });
 
     const tokens = await tokenResponse.json();
     if (!tokens.access_token) {
-      return res.redirect(\`\${FRONTEND_URL}/Admin?error=token_exchange_failed\`);
+      return res.redirect(`${FRONTEND_URL}/Admin?error=token_exchange_failed`);
     }
 
     const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: \`Bearer \${tokens.access_token}\` },
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
     });
 
     const googleUser = await userInfoResponse.json();
@@ -82,7 +85,7 @@ export const googleCallback = async (req, res) => {
     }
 
     if (role === 'admin' && user.user_type !== 1) {
-      return res.redirect(\`\${FRONTEND_URL}/Admin?error=not_admin\`);
+      return res.redirect(`${FRONTEND_URL}/Admin?error=not_admin`);
     }
 
     const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -92,7 +95,7 @@ export const googleCallback = async (req, res) => {
     res.redirect(redirectUrl.toString());
   } catch (error) {
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.joltcab.com';
-    res.redirect(\`\${FRONTEND_URL}/Admin?error=auth_failed\`);
+    res.redirect(`${FRONTEND_URL}/Admin?error=auth_failed`);
   }
 };
 
