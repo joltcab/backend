@@ -12,6 +12,7 @@ import adminRoutes from './admin.routes.js';
 import setupRoutes from './setup.routes.js';
 import roleRoutes from './role.routes.js';
 import settingsRoutes from './settings.routes.js';
+import countryRoutes from './country.routes.js';
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use('/admins', adminRoutes);
 router.use('/setup', setupRoutes);
 router.use('/roles', roleRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/countries', countryRoutes);
 router.use('/trips', tripRoutes);
 router.use('/ai', aiRoutes);
 router.use('/events', eventRoutes);
