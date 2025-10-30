@@ -12,7 +12,7 @@ export const googleAuth = async (req, res) => {
       return res.status(500).json({ success: false, error: 'Google OAuth not configured' });
     }
 
-    const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    const redirectUrl = new URL(callback || '/auth/google/callback', FRONTEND_URL);
     googleAuthUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
     googleAuthUrl.searchParams.append('redirect_uri', GOOGLE_REDIRECT_URI);
     googleAuthUrl.searchParams.append('response_type', 'code');
