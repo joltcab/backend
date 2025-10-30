@@ -12,7 +12,8 @@ export const googleAuth = async (req, res) => {
       return res.status(500).json({ success: false, error: 'Google OAuth not configured' });
     }
 
-    const redirectUrl = new URL(callback || '/auth/google/callback', FRONTEND_URL);
+    // Crear URL de autenticación de Google
+    const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     googleAuthUrl.searchParams.append('client_id', GOOGLE_CLIENT_ID);
     googleAuthUrl.searchParams.append('redirect_uri', GOOGLE_REDIRECT_URI);
     googleAuthUrl.searchParams.append('response_type', 'code');
@@ -25,6 +26,7 @@ export const googleAuth = async (req, res) => {
 
     res.redirect(googleAuthUrl.toString());
   } catch (error) {
+    console.error('Google Auth Error:', error);
     res.status(500).json({ success: false, error: 'Failed to initiate Google authentication' });
   }
 };
