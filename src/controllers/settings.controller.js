@@ -18,7 +18,9 @@ export const getSettings = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: settings.toObject(),
+        data: {
+        settings: settings.toObject(),
+      },
     });
   } catch (error) {
     next(error);
@@ -49,8 +51,10 @@ export const updateSettings = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: settingsObject,
-      message: 'Settings updated successfully',
+      data: {
+    settings: settingsObject,  // ← Agregar el wrapper "settings"
+  },
+  message: 'Settings updated successfully',
     });
   } catch (error) {
     console.error('Error updating settings:', error);

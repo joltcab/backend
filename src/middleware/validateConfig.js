@@ -108,14 +108,17 @@ export const getConfigStatus = async (req, res, next) => {
     const settings = await SettingsDetail.findOne();
     
     const status = {
-      system_configured: !!settings,
-      google_maps: !!(settings?.web_app_google_key),
-      stripe: !!(settings?.stripe_secret_key && settings?.stripe_publishable_key),
-      twilio: !!(settings?.twilio_account_sid && settings?.twilio_auth_token),
-      smtp: !!(settings?.smtp_host && settings?.smtp_port),
-      firebase: !!(settings?.firebase_apiKey && settings?.firebase_projectId),
-      aws_s3: !!(settings?.is_use_aws_bucket && settings?.aws_bucket_name),
-    };
+  system_configured: !!settings,
+  mapbox: !!(settings?.mapbox_access_token && settings?.mapbox_access_token.length > 10),
+  google_maps: !!(settings?.web_app_google_key && settings?.web_app_google_key.length > 10),
+  stripe: !!(settings?.stripe_secret_key && settings?.stripe_publishable_key),
+  twilio: !!(settings?.twilio_account_sid && settings?.twilio_auth_token),
+  smtp: !!(settings?.smtp_host && settings?.smtp_port),
+  sendgrid: !!(settings?.sendgrid_api_key),
+  firebase: !!(settings?.firebase_apiKey && settings?.firebase_projectId),
+  aws_s3: !!(settings?.is_use_aws_bucket && settings?.aws_bucket_name),
+  redis: false, // No hay campo en settings
+};
     
     res.json({
       success: true,
