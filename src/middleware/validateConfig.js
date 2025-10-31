@@ -1,11 +1,36 @@
 import { SettingsDetail } from '../models/SettingsDetail.js';
 
+// Helper para validar si un string tiene contenido válido
+const isValidKey = (key) => {
+  return key && typeof key === 'string' && key.length > 10 && !key.includes('•');
+};
+
+// Verificar si Mapbox está configurado
+export const requireMapbox = async (req, res, next) => {
+  try {
+    const settings = await SettingsDetail.findOne();
+    
+    if (!settings || !isValidKey(settings.mapbox_access_token)) {
+      return res.status(503).json({
+        success: false,
+        error: 'Mapbox not configured',
+        message: 'Please configure Mapbox access token in settings',
+        code: 'MAPBOX_NOT_CONFIGURED',
+      });
+    }
+    
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Verificar si Google Maps está configurado
 export const requireGoogleMaps = async (req, res, next) => {
   try {
     const settings = await SettingsDetail.findOne();
     
-    if (!settings || !settings.web_app_google_key) {
+    if (!settings || !isValidKey(settings.web_app_google_key)) {
       return res.status(503).json({
         success: false,
         error: 'Google Maps API not configured',
@@ -25,7 +50,7 @@ export const requireStripe = async (req, res, next) => {
   try {
     const settings = await SettingsDetail.findOne();
     
-    if (!settings || !settings.stripe_secret_key || !settings.stripe_publishable_key) {
+    if (!settings || !isValidKey(settings.stripe_secret_key) || !isValidKey(settings.stripe_publishable_key)) {
       return res.status(503).json({
         success: false,
         error: 'Stripe not configured',
@@ -45,7 +70,7 @@ export const requireTwilio = async (req, res, next) => {
   try {
     const settings = await SettingsDetail.findOne();
     
-    if (!settings || !settings.twilio_account_sid || !settings.twilio_auth_token) {
+    if (!settings || !isValidKey(settings.twilio_account_sid) || !isValidKey(settings.twilio_auth_token)) {
       return res.status(503).json({
         success: false,
         error: 'Twilio not configured',
@@ -108,17 +133,17 @@ export const getConfigStatus = async (req, res, next) => {
     const settings = await SettingsDetail.findOne();
     
     const status = {
-  system_configured: !!settings,
-  mapbox: !!(settings?.mapbox_access_token && settings?.mapbox_access_token.length > 10),
-  google_maps: !!(settings?.web_app_google_key && settings?.web_app_google_key.length > 10),
-  stripe: !!(settings?.stripe_secret_key && settings?.stripe_publishable_key),
-  twilio: !!(settings?.twilio_account_sid && settings?.twilio_auth_token),
-  smtp: !!(settings?.smtp_host && settings?.smtp_port),
-  sendgrid: !!(settings?.sendgrid_api_key),
-  firebase: !!(settings?.firebase_apiKey && settings?.firebase_projectId),
-  aws_s3: !!(settings?.is_use_aws_bucket && settings?.aws_bucket_name),
-  redis: false, // No hay campo en settings
-};
+      system_configured: !!settings,
+      mapbox: !!(settings && isValidKey(settings.mapbox_access_token)),
+      google_maps: !!(settings && isValidKey(settings.web_app_google_key)),
+      stripe: !!(settings && isValidKey(settings.stripe_secret_key) && isValidKey(settings.stripe_publishable_key)),
+      twilio: !!(settings && isValidKey(settings.twilio_account_sid) && isValidKey(settings.twilio_auth_token)),
+      smtp: !!(settings && settings.smtp_host && settings.smtp_port && settings.smtp_user),
+      sendgrid: !!(settings && isValidKey(settings.sendgrid_api_key)),
+      firebase: !!(settings && settings.firebase_apiKey && settings.firebase_projectId),
+      aws_s3: !!(settings && settings.is_use_aws_bucket && settings.aws_bucket_name),
+      redis: false, // Redis configuration is handled separately
+    };
     
     res.json({
       success: true,
@@ -134,6 +159,7 @@ export const getConfigStatus = async (req, res, next) => {
 };
 
 export default {
+  requireMapbox,
   requireGoogleMaps,
   requireStripe,
   requireTwilio,

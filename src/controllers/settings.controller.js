@@ -18,7 +18,7 @@ export const getSettings = async (req, res, next) => {
 
     res.json({
       success: true,
-        data: {
+      data: {
         settings: settings.toObject(),
       },
     });
@@ -52,9 +52,9 @@ export const updateSettings = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-    settings: settingsObject,  // ← Agregar el wrapper "settings"
-  },
-  message: 'Settings updated successfully',
+        settings: settingsObject,
+      },
+      message: 'Settings updated successfully',
     });
   } catch (error) {
     console.error('Error updating settings:', error);
@@ -118,7 +118,9 @@ export const setDefaultMapProvider = async (req, res, next) => {
     
     res.json({
       success: true,
-      data: settings.toObject(),
+      data: {
+        settings: settings.toObject(),
+      },
       message: `${provider} set as default map provider`,
     });
   } catch (error) {
@@ -136,7 +138,7 @@ export const initializeSettings = async (req, res, next) => {
       return res.json({
         success: true,
         message: 'Settings already initialized',
-        data: { settings },
+        data: { settings: settings.toObject() },
       });
     }
 
@@ -157,7 +159,7 @@ export const initializeSettings = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Settings initialized successfully',
-      data: { settings },
+      data: { settings: settings.toObject() },
     });
   } catch (error) {
     next(error);
