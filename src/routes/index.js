@@ -13,6 +13,7 @@ import setupRoutes from './setup.routes.js';
 import roleRoutes from './role.routes.js';
 import settingsRoutes from './settings.routes.js';
 import countryRoutes from './country.routes.js';
+import cityRoutes from './city.routes.js';
 
 const router = express.Router();
 
@@ -24,16 +25,16 @@ router.use('/setup', setupRoutes);
 router.use('/roles', roleRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/countries', countryRoutes);
+router.use('/cities', cityRoutes);
 router.use('/trips', tripRoutes);
 router.use('/ai', aiRoutes);
 router.use('/events', eventRoutes);
-router.use('/calendar', eventRoutes); // Alias para eventos
+router.use('/calendar', eventRoutes);
 router.use('/news', newsRoutes);
 router.use('/blog', blogRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/stats', statsRoutes);
 
-// Ruta de información de la API
 router.get('/', (req, res) => {
   res.json({
     success: true,
@@ -42,6 +43,8 @@ router.get('/', (req, res) => {
     endpoints: {
       auth: '/auth',
       users: '/users',
+      countries: '/countries',
+      cities: '/cities',
       ai: '/ai',
       events: '/events',
       calendar: '/calendar',
