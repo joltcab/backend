@@ -1,9 +1,10 @@
 import express from 'express';
 import {
-  getSettings,
-  updateSettings,
   getConstants,
+  getSettings,
   initializeSettings,
+  setDefaultMapProvider,
+  updateSettings,
 } from '../controllers/settings.controller.js';
 import { protect } from '../middleware/auth.js';
 import { getConfigStatus } from '../middleware/validateConfig.js';
@@ -19,5 +20,6 @@ router.use(protect);
 router.get('/', getSettings);
 router.put('/', updateSettings);
 router.post('/initialize', initializeSettings);
+router.post('/map-provider', setDefaultMapProvider);
 
 export default router;

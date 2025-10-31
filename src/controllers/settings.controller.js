@@ -1,5 +1,5 @@
-import { SettingsDetail } from '../models/SettingsDetail.js';
 import constants from '../constants/constants.json' assert { type: 'json' };
+import { SettingsDetail } from '../models/SettingsDetail.js';
 
 // Get settings (siempre hay solo un documento)
 export const getSettings = async (req, res, next) => {
@@ -18,9 +18,7 @@ export const getSettings = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: {
-        settings,
-      },
+      data: settings.toObject(),
     });
   } catch (error) {
     next(error);
@@ -37,18 +35,25 @@ export const updateSettings = async (req, res, next) => {
     if (!settings) {
       settings = await SettingsDetail.create(updates);
     } else {
-      Object.assign(settings, updates);
+      // Actualizar solo los campos enviados
+      Object.keys(updates).forEach(key => {
+        if (updates[key] !== undefined && updates[key] !== null) {
+          settings[key] = updates[key];
+        }
+      });
       await settings.save();
     }
 
+    // Convert to plain object to avoid circular references
+    const settingsObject = settings.toObject();
+
     res.json({
       success: true,
-      data: {
-        settings,
-      },
+      data: settingsObject,
       message: 'Settings updated successfully',
     });
   } catch (error) {
+    console.error('Error updating settings:', error);
     next(error);
   }
 };
@@ -63,6 +68,57 @@ export const getConstants = async (req, res, next) => {
       },
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+// Set default map provider
+export const setDefaultMapProvider = async (req, res, next) => {
+  try {
+    const { provider } = req.body; // 'mapbox' or 'google'
+    
+    if (!['mapbox', 'google'].includes(provider)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid provider. Must be "mapbox" or "google"',
+      });
+    }
+    
+    let settings = await SettingsDetail.findOne();
+    
+    if (!settings) {
+      return res.status(404).json({
+        success: false,
+        error: 'Settings not found',
+      });
+    }
+    
+    settings.default_map_provider = provider;
+    
+    // Enable the selected provider and disable the other
+    if (provider === 'mapbox') {
+      settings.is_mapbox_enabled = true;
+      if (settings.map_providers) {
+        settings.map_providers.mapbox.enabled = true;
+        settings.map_providers.google.enabled = false;
+      }
+    } else if (provider === 'google') {
+      settings.is_mapbox_enabled = false;
+      if (settings.map_providers) {
+        settings.map_providers.google.enabled = true;
+        settings.map_providers.mapbox.enabled = false;
+      }
+    }
+    
+    await settings.save();
+    
+    res.json({
+      success: true,
+      data: settings.toObject(),
+      message: `${provider} set as default map provider`,
+    });
+  } catch (error) {
+    console.error('Error setting default map provider:', error);
     next(error);
   }
 };
@@ -108,5 +164,6 @@ export default {
   getSettings,
   updateSettings,
   getConstants,
+  setDefaultMapProvider,
   initializeSettings,
 };
